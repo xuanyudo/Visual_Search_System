@@ -1,5 +1,12 @@
 import cv2
 import numpy as np
+import os
+from timeit import default_timer as timer
+from PIL import ImageTk, Image
+from tkinter import *
+from tkinter import filedialog
+import pickle
+
 
 def draw_key(img):
     sift1 = cv2.xfeatures2d.SIFT_create()
@@ -36,89 +43,149 @@ def select10(matchesMask):
         mask1[dot] = 1
     return mask1
 
-def task1(img, img1):
-    img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    img_gray1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
-    task1_sift1, descriptor1, kp1 = draw_key(img_gray)
-    task1_sift2, descriptor2, kp2 = draw_key(img_gray1)
 
-    cv2.imwrite("task1_sift1.jpg", task1_sift1)
-    cv2.imwrite("task1_sift2.jpg", task1_sift2)
+def task1(img,descriptor1,kp1, img1):
 
+    # cv2.imwrite("task1_sift1.jpg", task1_sift1)
+    # cv2.imwrite("task1_sift2.jpg", task1_sift2)
+    img_gray = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
+    task1_sift1, descriptor2, kp2 = draw_key(img_gray)
     good = find_knn_pair(descriptor1, descriptor2)
 
-    match_img_knn = cv2.drawMatchesKnn(img, kp1, img1, kp2, [[m] for m in good], None, flags=2)
-    cv2.imwrite('task1_matches_knn.jpg', match_img_knn)
+    # match_img_knn = cv2.drawMatchesKnn(img, kp1, img1, kp2, [[m] for m in good], None, flags=2)
+    # cv2.imwrite('task1_matches_knn.jpg', match_img_knn)
     # print(good)
+    if len(good) < 10:
+        return False
     src_pts = np.float32([kp1[m.queryIdx].pt for m in good]).reshape(-1, 1, 2)
     dst_pts = np.float32([kp2[m.trainIdx].pt for m in good]).reshape(-1, 1, 2)
 
     M, mask = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0)
-    print(M)
+
     matchesMask = mask.ravel().tolist()
-    print(len(matchesMask))
+    print(len(mask[mask == 1]))
     #
-    h, w = img_gray.shape
-    w1, h1 = img_gray1.shape
-    pts = np.float32([[0, 0], [0, h - 1], [w - 1, h - 1], [w - 1, 0]]).reshape(-1, 1, 2)
-    padding_left = 0
-    padding_top = 0
-    padding_down = 0
-    padding_right = 0
+    if len(mask[mask == 1]) > 10:
+        h, w,c = img.shape
+        pts = np.float32([[0, 0], [0, h - 1], [w - 1, h - 1], [w - 1, 0]]).reshape(-1, 1, 2)
 
-    dst = cv2.perspectiveTransform(pts, M)
-    img1 = cv2.polylines(img1, [np.int32(dst)], True, 255, 3, cv2.LINE_AA)
+        dst = cv2.perspectiveTransform(pts, M)
+        img1 = cv2.polylines(img1, [np.int32(dst)], True, 255, 3, cv2.LINE_AA)
+        cv2.imshow("match image", img1)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+        return True
 
-    if min(dst[:][:, :, 0]) < 0:
-        padding_left = int(abs(min(dst[:][:, :, 0])))
-    if max(dst[:][:, :, 0]) > w1:
-        padding_right = int(max(dst[:][:, :, 0]))
-    if min(dst[:][:, :, 1]) < 0:
-        padding_top = int(abs(min(dst[:][:, :, 1])))
-    if max(dst[:][:, :, 1]) > h1:
-        padding_down = int(max(dst[:][:, :, 1]))
-    outputImage = cv2.copyMakeBorder(
-        img1,
-        padding_top,
-        padding_down,
-        padding_left,
-        padding_right,
-        cv2.BORDER_CONSTANT,
-        value=(0, 0, 0)
-    )
-    dst_new = []
-    for d in dst[:][:]:
-        dst_new.append([padding_left + int(d[0][0]), padding_top + int(d[0][1])])
-    dst_new = np.float32([dst_new]).reshape(-1, 1, 2)
 
-    # ``
-
-    matrix = cv2.getPerspectiveTransform(pts, dst_new)
-    result = cv2.warpPerspective(img, matrix, (outputImage.shape[1], outputImage.shape[0]))
-    result[padding_top:padding_top + h, padding_left:padding_left + w] = outputImage[padding_top:padding_top + h,
-                                                                         padding_left:padding_left + w]
-
-    cv2.imwrite("task1_pano.jpg", result)
-    mask1 = select10(matchesMask)
-    draw_params = dict(matchColor=(0, 255, 0),  # draw matches in green color
-                       singlePointColor=None,
-                       matchesMask=mask1,  # draw only inliers
-                       flags=2)
-
-    match_10 = cv2.drawMatches(img, kp1, img1, kp2, good, None, **draw_params)
-
-    cv2.imwrite("task1_matches.jpg", match_10)
-
-if __name__ == '__main__':
-    path1 = "paris_1/paris/eiffel/paris_eiffel_000005.jpg"
-    path2 = "paris_1/paris/eiffel/paris_eiffel_000014.jpg"
-    # path1 = "mountain1.jpg"
-    # path2 = "mountain2.jpg"
-
-    img1 = cv2.imread(path1)
-    img2 = cv2.imread(path2)
-    cv2.imshow("img1",img1)
-    cv2.imshow("img2", img2)
+def compareAll(sample,dir,x1,y1,width,height):
+    img1 = fileRead(sample)
+    x1 = int(x1)
+    y1 = int(y1)
+    width = int(width)
+    height = int(height)
+    img1 = img1[x1:x1+width,y1:y1+height]
+    cv2.imshow("query image", img1)
     cv2.waitKey(0)
     cv2.destroyAllWindows()
-    task1(img1,img2)
+    img_gray = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
+    task1_sift1, descriptor1, kp1 = draw_key(img_gray)
+    query_res = []
+    res_path = "res_data/"
+
+    for root, subdirs, files in os.walk(dir):
+
+        for filename in files:
+            if filename.endswith(".jpg") or filename.endswith(".png"):
+                img2 = fileRead(os.path.join(root, filename))
+
+                b = task1(img1,descriptor1,kp1, img2)
+                if b:
+                    query_res.append(filename)
+                    cv2.imwrite(res_path+"res_"+filename,img2)
+
+    return query_res
+
+
+def fileRead(path):
+    # path1 = "mountain1.jpg"
+    # path2 = "mountain2.jpg"
+    img1 = cv2.imread(path)
+    return img1
+
+def buildPickle(file):
+    img_arr = []
+    kp_arr = []
+    count = 0
+    for root, subdirs, files in os.walk(dir):
+        print(root)
+        for filename in files:
+            print(filename)
+            if filename.endswith(".jpg") or filename.endswith(".png"):
+                img1 = fileRead(os.path.join(root, filename))
+                img_gray = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
+                task1_sift1, descriptor1, kp1 = draw_key(img_gray)
+                print(kp1)
+                temp = (kp1.pt, kp1.size, kp1.angle, kp1.response, kp1.octave,
+                        kp1.class_id, descriptor1)
+                img_arr.append([img1,temp])
+        p_file = open(file+"img"+str(count)+".pkl","wb")
+        pickle.dump(img_arr,p_file)
+        p_file.close()
+        count+=1
+        print(root+" complete")
+
+def loadPickle(file):
+    p_file = open(file,"rb")
+    img_arr = pickle.load(p_file)
+    p_file.close()
+    return img_arr
+
+def openfile(root):
+    filename = filedialog.askopenfilename(initialdir=dir, title="Select File",
+                                          filetypes=(("jpeg files", "*.jpg"), ("all files", "*.*")))
+    img = PhotoImage(file="paris_1/paris/eiffel/paris_eiffel_000000.jpg")
+    panel = Label(root,image=img).grid(row=5)
+
+if __name__ == '__main__':
+    dir = "paris_1/paris/eiffel"
+    path1 = "paris_1/paris/general/paris_general_002985.jpg"
+    x1,y1 = 175.000000,7.000000
+    width,height = 590.000000,907.000000
+
+    start = timer()
+    result = compareAll(path1,dir,x1,y1,width,height)
+    end = timer()
+    print("time elapse: {}", end - start)
+    with open("eiffel.txt","w") as f:
+
+        for res in result:
+            f.write(res+"\n")
+
+    # buildPickle("pickle")
+
+            # current_img = ""
+            # root = Tk()
+            #
+            # Label(root, text = "x1,y1 :").grid(row=0)
+            # Label(root, text="x2,y2 :").grid(row=1)
+            # Label(root, text="x3,y3 :").grid(row=2)
+            # Label(root, text="x4,y4 :").grid(row=3)
+            #
+            #
+            # e1 = Entry(root)
+            # e2 = Entry(root)
+            # e3 = Entry(root)
+            # e4 = Entry(root)
+            #
+            # e1.grid(row=0, column=1)
+            # e2.grid(row=1, column=1)
+            # e3.grid(row=2, column=1)
+            # e4.grid(row=3, column=1)
+            #
+            # root.bind('<Return>',openfile)
+            # Button(root, text='Quit', command=root.quit).grid(row=3, column=0, sticky=W, pady=4)
+            #
+            # b = Button(root, text='Input Image', command=lambda:openfile(root)).grid(row=3, column=1, sticky=W, pady=4)
+            #
+            #
+            # mainloop()
