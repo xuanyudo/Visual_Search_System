@@ -49,18 +49,20 @@ def task1(img,descriptor1,kp1, img1):
     # cv2.imwrite("task1_sift1.jpg", task1_sift1)
     # cv2.imwrite("task1_sift2.jpg", task1_sift2)
     img_gray = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
-    task1_sift1, descriptor2, kp2 = draw_key(img_gray)
-    good = find_knn_pair(descriptor1, descriptor2)
+    task1_sift1, descriptor2, kp2 = draw_key(img_gray)#compute sift and key points
+    good = find_knn_pair(descriptor1, descriptor2) # looking for good pairs
 
     # match_img_knn = cv2.drawMatchesKnn(img, kp1, img1, kp2, [[m] for m in good], None, flags=2)
     # cv2.imwrite('task1_matches_knn.jpg', match_img_knn)
     # print(good)
     if len(good) < 10:
         return False
+
+    # looks for pair point of good pair
     src_pts = np.float32([kp1[m.queryIdx].pt for m in good]).reshape(-1, 1, 2)
     dst_pts = np.float32([kp2[m.trainIdx].pt for m in good]).reshape(-1, 1, 2)
 
-    M, mask = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0)
+    M, mask = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0) # using ransac for Homography
 
     matchesMask = mask.ravel().tolist()
     print(len(mask[mask == 1]))
@@ -69,8 +71,8 @@ def task1(img,descriptor1,kp1, img1):
         h, w,c = img.shape
         pts = np.float32([[0, 0], [0, h - 1], [w - 1, h - 1], [w - 1, 0]]).reshape(-1, 1, 2)
 
-        dst = cv2.perspectiveTransform(pts, M)
-        img1 = cv2.polylines(img1, [np.int32(dst)], True, 255, 3, cv2.LINE_AA)
+        dst = cv2.perspectiveTransform(pts, M)  #compute transformation matrix
+        img1 = cv2.polylines(img1, [np.int32(dst)], True, 255, 3, cv2.LINE_AA) # draw boundary
         cv2.imshow("match image", img1)
         cv2.waitKey(0)
         cv2.destroyAllWindows()
@@ -83,14 +85,14 @@ def compareAll(sample,dir,x1,y1,width,height):
     y1 = int(y1)
     width = int(width)
     height = int(height)
-    img1 = img1[x1:x1+width,y1:y1+height]
+    img1 = img1[x1:x1+width,y1:y1+height] # crop image to frame
     cv2.imshow("query image", img1)
     cv2.waitKey(0)
     cv2.destroyAllWindows()
     img_gray = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
-    task1_sift1, descriptor1, kp1 = draw_key(img_gray)
+    task1_sift1, descriptor1, kp1 = draw_key(img_gray)   #compute sift and key points
     query_res = []
-    res_path = "res_data/"
+    res_path = "res_data/"  #res file
 
     for root, subdirs, files in os.walk(dir):
 
@@ -101,7 +103,7 @@ def compareAll(sample,dir,x1,y1,width,height):
                 b = task1(img1,descriptor1,kp1, img2)
                 if b:
                     query_res.append(filename)
-                    cv2.imwrite(res_path+"res_"+filename,img2)
+                    cv2.imwrite(res_path+"res_"+filename,img2)# output image
 
     return query_res
 
@@ -140,6 +142,7 @@ def loadPickle(file):
     p_file.close()
     return img_arr
 
+#ignore
 def openfile(root):
     filename = filedialog.askopenfilename(initialdir=dir, title="Select File",
                                           filetypes=(("jpeg files", "*.jpg"), ("all files", "*.*")))
@@ -147,19 +150,19 @@ def openfile(root):
     panel = Label(root,image=img).grid(row=5)
 
 if __name__ == '__main__':
-    dir = "paris_1/paris/eiffel"
-    path1 = "paris_1/paris/general/paris_general_002985.jpg"
-    x1,y1 = 175.000000,7.000000
-    width,height = 590.000000,907.000000
+    dir = "paris_1/paris/eiffel"    #query directory
+    path1 = "paris_1/paris/general/paris_general_002985.jpg"    #query image
+    x1,y1 = 175.000000,7.000000     # startiing position
+    width,height = 590.000000,907.000000    # width and height of query image
 
     start = timer()
-    result = compareAll(path1,dir,x1,y1,width,height)
+    result = compareAll(path1,dir,x1,y1,width,height) # compare query image with all other image in db
     end = timer()
     print("time elapse: {}", end - start)
     with open("eiffel.txt","w") as f:
 
         for res in result:
-            f.write(res+"\n")
+            f.write(res+"\n")   # write to disk of all sucess query image
 
     # buildPickle("pickle")
 
